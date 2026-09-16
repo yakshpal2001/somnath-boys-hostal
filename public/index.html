@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Somnath Boys Hostal - Student Records</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Somnath Boys Hostal</h1>
+    <p class="subtitle">Student Records</p>
+  </header>
+
+  <main class="container">
+    <div class="search-row">
+      <input id="searchInput" type="text" placeholder="Search by student name..." autocomplete="off" />
+      <button id="addBtn" class="btn primary">+ Add Student</button>
+    </div>
+
+    <div id="reminderSection" class="reminder-section hidden">
+      <h3>Payment Reminders</h3>
+      <div id="reminderList" class="reminder-list"></div>
+    </div>
+
+    <p id="resultCount" class="result-count"></p>
+    <div id="studentList" class="student-list"></div>
+  </main>
+
+  <!-- Add / Edit Student Modal -->
+  <div id="studentModal" class="modal-overlay hidden">
+    <div class="modal">
+      <h2 id="studentModalTitle">Add Student</h2>
+      <form id="studentForm">
+        <input type="hidden" id="studentId" />
+        <div class="form-grid">
+          <label>Full Name *<input id="f_name" required /></label>
+          <label>Father's / Guardian's Name<input id="f_father" /></label>
+          <label>Phone Number<input id="f_phone" /></label>
+          <label>ID Proof Type<input id="f_idtype" placeholder="Aadhaar / Voter ID / etc." /></label>
+          <label>ID Proof Number<input id="f_idnumber" /></label>
+          <label class="full">Address<textarea id="f_address" rows="2"></textarea></label>
+        </div>
+
+        <div id="initialStayFields">
+          <h3>Check-in Details</h3>
+          <div class="form-grid">
+            <label>Room No.<input id="f_room" /></label>
+            <label>Check-in Date<input id="f_checkin" type="date" /></label>
+            <label>Check-out Date<input id="f_checkout" type="date" /></label>
+            <label>Fees Paid<input id="f_fees" placeholder="e.g. 5000" /></label>
+            <label>Fees Due Date<input id="f_duedate" type="date" /></label>
+            <label class="full">Notes<textarea id="f_notes" rows="2"></textarea></label>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn" id="cancelStudentBtn">Cancel</button>
+          <button type="submit" class="btn primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add / Edit Stay Modal -->
+  <div id="stayModal" class="modal-overlay hidden">
+    <div class="modal">
+      <h2 id="stayModalTitle">Add Check-in Record</h2>
+      <form id="stayForm">
+        <input type="hidden" id="stayId" />
+        <input type="hidden" id="stayStudentId" />
+        <div class="form-grid">
+          <label>Room No.<input id="s_room" /></label>
+          <label>Check-in Date<input id="s_checkin" type="date" /></label>
+          <label>Check-out Date<input id="s_checkout" type="date" /></label>
+          <label>Fees Paid<input id="s_fees" placeholder="e.g. 5000" /></label>
+          <label>Fees Due Date<input id="s_duedate" type="date" /></label>
+          <label class="full">Notes<textarea id="s_notes" rows="2"></textarea></label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" id="cancelStayBtn">Cancel</button>
+          <button type="submit" class="btn primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Student Detail Panel -->
+  <div id="detailModal" class="modal-overlay hidden">
+    <div class="modal detail-modal">
+      <div class="detail-header">
+        <h2 id="detailName"></h2>
+        <button class="btn" id="closeDetailBtn">Close</button>
+      </div>
+      <div class="detail-grid" id="detailInfo"></div>
+
+      <div class="detail-actions">
+        <button class="btn" id="editStudentBtn">Edit Details</button>
+        <button class="btn primary" id="addStayBtn">+ New Check-in Record</button>
+        <button class="btn danger" id="deleteStudentBtn">Delete Student</button>
+      </div>
+
+      <h3>Stay History</h3>
+      <div class="table-wrap">
+        <table id="stayTable">
+          <thead>
+            <tr>
+              <th>Room</th><th>Check-in</th><th>Check-out</th><th>Fees Paid</th><th>Due Date</th><th>Notes</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="stayTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

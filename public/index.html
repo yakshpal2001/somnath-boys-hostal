@@ -7,9 +7,13 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div id="buildingBg" aria-hidden="true"></div>
+
   <header class="topbar">
-    <h1>Somnath Boys Hostal</h1>
-    <p class="subtitle">Student Records</p>
+    <div class="topbar-inner">
+      <h1>Somnath Boys Hostal</h1>
+      <p class="subtitle">Student Records</p>
+    </div>
   </header>
 
   <main class="container">
@@ -40,6 +44,13 @@
           <label>ID Proof Type<input id="f_idtype" placeholder="Aadhaar / Voter ID / etc." /></label>
           <label>ID Proof Number<input id="f_idnumber" /></label>
           <label class="full">Address<textarea id="f_address" rows="2"></textarea></label>
+          <label class="full">Photo / ID Document
+            <input id="f_photo" type="file" accept="image/*,.pdf" />
+          </label>
+        </div>
+        <div id="photoPreviewWrap" class="photo-preview-wrap hidden">
+          <img id="photoPreview" class="photo-preview" alt="Photo preview" />
+          <span id="photoPreviewLabel" class="photo-preview-label"></span>
         </div>
 
         <div id="initialStayFields">
@@ -89,7 +100,10 @@
   <div id="detailModal" class="modal-overlay hidden">
     <div class="modal detail-modal">
       <div class="detail-header">
-        <h2 id="detailName"></h2>
+        <div class="detail-heading">
+          <img id="detailPhoto" class="detail-photo hidden" alt="" />
+          <h2 id="detailName"></h2>
+        </div>
         <button class="btn" id="closeDetailBtn">Close</button>
       </div>
       <div class="detail-grid" id="detailInfo"></div>

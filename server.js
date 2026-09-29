@@ -1,10 +1,38 @@
 const express = require('express');
 const Database = require('better-sqlite3');
+const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
 const DATA_DIR = path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf'];
+    if (!allowed.includes(path.extname(file.originalname).toLowerCase())) {
+      return cb(new Error('Only image files (jpg, png, gif, webp) or PDF are allowed'));
+    }
+    cb(null, true);
+  },
+});
+
+function deletePhotoFile(photo) {
+  if (!photo) return;
+  const filePath = path.join(UPLOADS_DIR, photo);
+  fs.unlink(filePath, () => {});
+}
 
 const db = new Database(path.join(DATA_DIR, 'hostel.db'));
 db.pragma('journal_mode = WAL');
@@ -41,9 +69,15 @@ if (!stayColumns.includes('fees_due_date')) {
   db.exec('ALTER TABLE stays ADD COLUMN fees_due_date TEXT');
 }
 
+const studentColumns = db.prepare("PRAGMA table_info(students)").all().map((c) => c.name);
+if (!studentColumns.includes('photo')) {
+  db.exec('ALTER TABLE students ADD COLUMN photo TEXT');
+}
+
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 function getStaysForStudent(studentId) {
   return db.prepare(
@@ -83,21 +117,24 @@ app.get('/api/students/:id', (req, res) => {
 });
 
 // Create a new student, optionally with an initial stay
-app.post('/api/students', (req, res) => {
+app.post('/api/students', upload.single('photo'), (req, res) => {
   const { name, father_name, phone, address, id_proof_type, id_proof_number,
     room_no, check_in_date, check_out_date, fees_paid, fees_due_date, notes } = req.body;
 
   if (!name || !name.trim()) {
+    if (req.file) deletePhotoFile(req.file.filename);
     return res.status(400).json({ error: 'Name is required' });
   }
 
+  const photo = req.file ? req.file.filename : null;
+
   const insertStudent = db.prepare(`
-    INSERT INTO students (name, father_name, phone, address, id_proof_type, id_proof_number)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO students (name, father_name, phone, address, id_proof_type, id_proof_number, photo)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
   const result = insertStudent.run(
     name.trim(), father_name || '', phone || '', address || '',
-    id_proof_type || '', id_proof_number || ''
+    id_proof_type || '', id_proof_number || '', photo
   );
   const studentId = result.lastInsertRowid;
 
@@ -112,24 +149,37 @@ app.post('/api/students', (req, res) => {
 });
 
 // Update student's personal details
-app.put('/api/students/:id', (req, res) => {
+app.put('/api/students/:id', upload.single('photo'), (req, res) => {
   const { name, father_name, phone, address, id_proof_type, id_proof_number } = req.body;
   if (!name || !name.trim()) {
+    if (req.file) deletePhotoFile(req.file.filename);
     return res.status(400).json({ error: 'Name is required' });
   }
-  const result = db.prepare(`
-    UPDATE students SET name = ?, father_name = ?, phone = ?, address = ?,
-      id_proof_type = ?, id_proof_number = ? WHERE id = ?
-  `).run(name.trim(), father_name || '', phone || '', address || '',
-    id_proof_type || '', id_proof_number || '', req.params.id);
 
-  if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
+  const existing = db.prepare('SELECT photo FROM students WHERE id = ?').get(req.params.id);
+  if (!existing) {
+    if (req.file) deletePhotoFile(req.file.filename);
+    return res.status(404).json({ error: 'Not found' });
+  }
+
+  const photo = req.file ? req.file.filename : existing.photo;
+
+  db.prepare(`
+    UPDATE students SET name = ?, father_name = ?, phone = ?, address = ?,
+      id_proof_type = ?, id_proof_number = ?, photo = ? WHERE id = ?
+  `).run(name.trim(), father_name || '', phone || '', address || '',
+    id_proof_type || '', id_proof_number || '', photo, req.params.id);
+
+  if (req.file && existing.photo) deletePhotoFile(existing.photo);
+
   res.json(getStudentWithStays(req.params.id));
 });
 
 app.delete('/api/students/:id', (req, res) => {
+  const existing = db.prepare('SELECT photo FROM students WHERE id = ?').get(req.params.id);
   const result = db.prepare('DELETE FROM students WHERE id = ?').run(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
+  if (existing && existing.photo) deletePhotoFile(existing.photo);
   res.json({ ok: true });
 });
 
@@ -165,6 +215,13 @@ app.delete('/api/stays/:id', (req, res) => {
   if (!stay) return res.status(404).json({ error: 'Not found' });
   db.prepare('DELETE FROM stays WHERE id = ?').run(req.params.id);
   res.json(getStudentWithStays(stay.student_id));
+});
+
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError || err) {
+    return res.status(400).json({ error: err.message || 'Upload failed' });
+  }
+  next(err);
 });
 
 const PORT = process.env.PORT || 4173;

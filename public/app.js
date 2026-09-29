@@ -10,6 +10,11 @@ const studentForm = document.getElementById('studentForm');
 const studentModalTitle = document.getElementById('studentModalTitle');
 const initialStayFields = document.getElementById('initialStayFields');
 const cancelStudentBtn = document.getElementById('cancelStudentBtn');
+const f_photo = document.getElementById('f_photo');
+const photoPreviewWrap = document.getElementById('photoPreviewWrap');
+const photoPreview = document.getElementById('photoPreview');
+const photoPreviewLabel = document.getElementById('photoPreviewLabel');
+const detailPhoto = document.getElementById('detailPhoto');
 
 const stayModal = document.getElementById('stayModal');
 const stayForm = document.getElementById('stayForm');
@@ -28,12 +33,13 @@ const deleteStudentBtn = document.getElementById('deleteStudentBtn');
 let currentStudentId = null;
 let searchDebounce = null;
 
-async function api(url, opts) {
+async function api(url, opts = {}) {
   let res;
   try {
+    const isFormData = opts.body instanceof FormData;
     res = await fetch(url, {
-      headers: { 'Content-Type': 'application/json' },
       ...opts,
+      headers: isFormData ? opts.headers : { 'Content-Type': 'application/json', ...opts.headers },
     });
   } catch (networkErr) {
     throw new Error(`Could not reach server (${networkErr.message}). Is it running?`);
@@ -94,10 +100,16 @@ function renderList(students) {
     const latest = s.stays && s.stays[0];
     const card = document.createElement('div');
     card.className = 'student-card';
+    const avatar = s.photo
+      ? `<img class="card-avatar" src="/uploads/${s.photo}" alt="" />`
+      : `<div class="card-avatar card-avatar-placeholder">${escapeHtml(s.name.charAt(0).toUpperCase())}</div>`;
     card.innerHTML = `
-      <div>
-        <div class="name">${escapeHtml(s.name)}</div>
-        <div class="meta">${latest ? `Room ${escapeHtml(latest.room_no || '-')} &middot; Check-in: ${fmtDate(latest.check_in_date)}` : (s.phone ? escapeHtml(s.phone) : 'No stay record yet')}</div>
+      <div class="card-main">
+        ${avatar}
+        <div>
+          <div class="name">${escapeHtml(s.name)}</div>
+          <div class="meta">${latest ? `Room ${escapeHtml(latest.room_no || '-')} &middot; Check-in: ${fmtDate(latest.check_in_date)}` : (s.phone ? escapeHtml(s.phone) : 'No stay record yet')}</div>
+        </div>
       </div>
       <div class="card-badges">
         <span class="badge ${status.cls}">${status.text}</span>
@@ -161,11 +173,34 @@ searchInput.addEventListener('input', () => {
 });
 
 // ---- Add / Edit Student ----
+function resetPhotoPreview() {
+  photoPreviewWrap.classList.add('hidden');
+  photoPreview.src = '';
+  photoPreviewLabel.textContent = '';
+}
+
+function showPhotoPreview(src, label) {
+  photoPreview.src = src;
+  photoPreviewLabel.textContent = label;
+  photoPreviewWrap.classList.remove('hidden');
+}
+
+f_photo.addEventListener('change', () => {
+  const file = f_photo.files[0];
+  if (!file) return resetPhotoPreview();
+  if (file.type.startsWith('image/')) {
+    showPhotoPreview(URL.createObjectURL(file), file.name);
+  } else {
+    showPhotoPreview('', file.name);
+  }
+});
+
 function openAddStudent() {
   studentModalTitle.textContent = 'Add Student';
   studentForm.reset();
   document.getElementById('studentId').value = '';
   initialStayFields.classList.remove('hidden');
+  resetPhotoPreview();
   studentModal.classList.remove('hidden');
 }
 
@@ -178,6 +213,12 @@ function openEditStudent(student) {
   document.getElementById('f_idtype').value = student.id_proof_type || '';
   document.getElementById('f_idnumber').value = student.id_proof_number || '';
   document.getElementById('f_address').value = student.address || '';
+  f_photo.value = '';
+  if (student.photo) {
+    showPhotoPreview(`/uploads/${student.photo}`, 'Current photo (choose a file to replace)');
+  } else {
+    resetPhotoPreview();
+  }
   initialStayFields.classList.add('hidden');
   studentModal.classList.remove('hidden');
 }
@@ -188,28 +229,28 @@ cancelStudentBtn.addEventListener('click', () => studentModal.classList.add('hid
 studentForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const id = document.getElementById('studentId').value;
-  const payload = {
-    name: document.getElementById('f_name').value,
-    father_name: document.getElementById('f_father').value,
-    phone: document.getElementById('f_phone').value,
-    id_proof_type: document.getElementById('f_idtype').value,
-    id_proof_number: document.getElementById('f_idnumber').value,
-    address: document.getElementById('f_address').value,
-  };
+  const formData = new FormData();
+  formData.append('name', document.getElementById('f_name').value);
+  formData.append('father_name', document.getElementById('f_father').value);
+  formData.append('phone', document.getElementById('f_phone').value);
+  formData.append('id_proof_type', document.getElementById('f_idtype').value);
+  formData.append('id_proof_number', document.getElementById('f_idnumber').value);
+  formData.append('address', document.getElementById('f_address').value);
+  if (f_photo.files[0]) formData.append('photo', f_photo.files[0]);
 
   try {
     if (id) {
-      await api(`/api/students/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+      await api(`/api/students/${id}`, { method: 'PUT', body: formData });
       studentModal.classList.add('hidden');
       await openDetail(id);
     } else {
-      payload.room_no = document.getElementById('f_room').value;
-      payload.check_in_date = document.getElementById('f_checkin').value;
-      payload.check_out_date = document.getElementById('f_checkout').value;
-      payload.fees_paid = document.getElementById('f_fees').value;
-      payload.fees_due_date = document.getElementById('f_duedate').value;
-      payload.notes = document.getElementById('f_notes').value;
-      await api('/api/students', { method: 'POST', body: JSON.stringify(payload) });
+      formData.append('room_no', document.getElementById('f_room').value);
+      formData.append('check_in_date', document.getElementById('f_checkin').value);
+      formData.append('check_out_date', document.getElementById('f_checkout').value);
+      formData.append('fees_paid', document.getElementById('f_fees').value);
+      formData.append('fees_due_date', document.getElementById('f_duedate').value);
+      formData.append('notes', document.getElementById('f_notes').value);
+      await api('/api/students', { method: 'POST', body: formData });
       studentModal.classList.add('hidden');
       searchInput.value = '';
       await loadStudents();
@@ -224,6 +265,13 @@ async function openDetail(id) {
   const student = await api(`/api/students/${id}`);
   currentStudentId = student.id;
   detailName.textContent = student.name;
+  if (student.photo) {
+    detailPhoto.src = `/uploads/${student.photo}`;
+    detailPhoto.classList.remove('hidden');
+  } else {
+    detailPhoto.src = '';
+    detailPhoto.classList.add('hidden');
+  }
   detailInfo.innerHTML = `
     <div><span class="label">Father's / Guardian's Name</span>${escapeHtml(student.father_name) || '-'}</div>
     <div><span class="label">Phone</span>${escapeHtml(student.phone) || '-'}</div>
